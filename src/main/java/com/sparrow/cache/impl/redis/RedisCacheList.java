@@ -9,6 +9,7 @@ import redis.clients.jedis.ShardedJedis;
 
 import java.util.ArrayList;
 import java.util.List;
+import redis.clients.jedis.ShardedJedisPipeline;
 
 /**
  * Created by harry on 2018/1/26.
@@ -29,7 +30,7 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
     }
 
     @Override
-    public Long add(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Long add(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
@@ -55,6 +56,7 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
         return redisPool.execute(new Executor<Integer>() {
             @Override
             public Integer execute(ShardedJedis jedis) {
+                ShardedJedisPipeline shardedJedisPipeline= jedis.pipelined();
                 int i = 0;
                 TypeConverter typeConverter=new TypeConverter(String.class);
                 for (T value : values) {
@@ -62,19 +64,21 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
                         continue;
                     }
                     i++;
-                    jedis.lpush(key.key(),typeConverter.convert(value).toString());
+                    shardedJedisPipeline.lpush(key.key(),typeConverter.convert(value).toString());
                 }
+                shardedJedisPipeline.sync();
                 return i;
             }
         }, key);
     }
 
     @Override
-    public Long remove(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Long remove(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
-                return jedis.lrem(key.key(), 1L, value.toString());
+                TypeConverter typeConverter=new TypeConverter(value.getClass());
+                return jedis.lrem(key.key(), 1L, typeConverter.convert(value).toString());
             }
         }, key);
     }
@@ -92,8 +96,9 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
             public List<T> execute(ShardedJedis jedis) throws CacheConnectionException {
                 List<String> list = jedis.lrange(key.key(), 0,- 1);
                 List<T> tList = new ArrayList<T>(list.size());
+                TypeConverter typeConverter=new TypeConverter(clazz);
                 for (String s : list) {
-                    tList.add((T) RedisCacheList.this.jsonProvider.parse(s,clazz));
+                    tList.add((T) typeConverter.convert(s));
                 }
                 return tList;
             }
@@ -120,8 +125,9 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
                         return typeList;
                     }
                     typeList =  new ArrayList<T>(list.size());
+                    TypeConverter typeConverter=new TypeConverter(clazz);
                     for (String s : list) {
-                        typeList.add((T)RedisCacheList.this.jsonProvider.parse(s,clazz));
+                        typeList.add((T)typeConverter.convert(s));
                     }
                     return typeList;
                 }

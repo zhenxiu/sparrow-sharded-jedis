@@ -10,6 +10,7 @@ import redis.clients.jedis.ShardedJedis;
 
 import java.util.HashSet;
 import java.util.Set;
+import redis.clients.jedis.ShardedJedisPipeline;
 
 /**
  * Created by harry on 2018/1/26.
@@ -57,34 +58,38 @@ public class RedisCacheSet extends AbstractCommand implements CacheSet {
             public Integer execute(ShardedJedis jedis) {
                 int i = 0;
                 TypeConverter typeConverter=new TypeConverter(String.class);
+                ShardedJedisPipeline shardedJedisPipeline= jedis.pipelined();
                 for (Object value : values) {
                     if (value == null) {
                         continue;
                     }
                     i++;
-                    jedis.sadd(key.key(), typeConverter.convert(value).toString());
+                    shardedJedisPipeline.sadd(key.key(), typeConverter.convert(value).toString());
                 }
+                shardedJedisPipeline.sync();
                 return i;
             }
         }, key);
     }
 
     @Override
-    public Long remove(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Long remove(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
-                return jedis.srem(key.key(), value.toString());
+                TypeConverter typeConverter=new TypeConverter(String.class);
+                return jedis.srem(key.key(),typeConverter.convert(value).toString());
             }
         }, key);
     }
 
     @Override
-    public Boolean exist(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Boolean exist(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Boolean>() {
             @Override
             public Boolean execute(ShardedJedis jedis) {
-                return jedis.sismember(key.key(), value.toString());
+                TypeConverter typeConverter=new TypeConverter(String.class);
+                return jedis.sismember(key.key(), typeConverter.convert(value).toString());
             }
         }, key);
     }

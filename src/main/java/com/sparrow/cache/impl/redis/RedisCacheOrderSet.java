@@ -6,6 +6,7 @@ import com.sparrow.constant.cache.KEY;
 import com.sparrow.core.TypeConverter;
 import com.sparrow.exception.CacheConnectionException;
 import redis.clients.jedis.ShardedJedis;
+import redis.clients.jedis.ShardedJedisPipeline;
 import redis.clients.jedis.Tuple;
 
 import java.util.LinkedHashMap;
@@ -31,7 +32,7 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
     }
 
     @Override
-    public Long add(final KEY key, final Object value, final double score) throws CacheConnectionException {
+    public <T> Long add(final KEY key, final T value, final double score) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
@@ -43,11 +44,12 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
 
 
     @Override
-    public Long remove(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Long remove(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
-                return jedis.zrem(key.key(), value.toString());
+                TypeConverter typeConverter=new TypeConverter(String.class);
+                return jedis.zrem(key.key(), typeConverter.convert(value).toString());
             }
         }, key);
     }
@@ -63,17 +65,18 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
     }
 
     @Override
-    public Double getScore(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Double getScore(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Double>() {
             @Override
             public Double execute(ShardedJedis jedis) {
-                return jedis.zscore(key.key(), value.toString());
+                TypeConverter typeConverter=new TypeConverter(String.class);
+                return jedis.zscore(key.key(), typeConverter.convert(value).toString());
             }
         }, key);
     }
 
     @Override
-    public Long getRank(final KEY key, final Object value) throws CacheConnectionException {
+    public <T> Long getRank(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
@@ -98,25 +101,28 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
     }
 
     @Override
-    public Integer putAllWithScore(final KEY key, final Map<String, Double> keyScoreMap) throws CacheConnectionException {
+    public <T> Integer putAllWithScore(final KEY key, final Map<T, Double> keyScoreMap) throws CacheConnectionException {
         return redisPool.execute(new Executor<Integer>() {
             @Override
             public Integer execute(ShardedJedis jedis) {
-                for (String value : keyScoreMap.keySet()) {
-                    jedis.zadd(key.key(), keyScoreMap.get(value), value);
+                ShardedJedisPipeline pipeline=jedis.pipelined();
+                TypeConverter typeConverter=new TypeConverter(String.class);
+                for (T value : keyScoreMap.keySet()) {
+                    pipeline.zadd(key.key(), keyScoreMap.get(value), typeConverter.convert(value).toString());
                 }
+                pipeline.sync();
                 return keyScoreMap.size();
             };
         }, key);
     }
 
     @Override
-    public  Map<String, Double> getAllWithScore(final KEY key,final CacheDataNotFound<Map<String,Double>> hook) {
+    public <T> Map<T, Double> getAllWithScore(final KEY key, final Class keyClazz,final CacheDataNotFound<Map<T,Double>> hook) {
         try {
-            return redisPool.execute(new Executor<Map<String, Double>>() {
+            return redisPool.execute(new Executor<Map<T, Double>>() {
                 @Override
-                public Map<String, Double> execute(ShardedJedis jedis) {
-                    Map<String, Double> scoreMap = null;
+                public Map<T, Double> execute(ShardedJedis jedis) {
+                    Map<T, Double> scoreMap = null;
                     Set<Tuple> tuples = jedis.zrevrangeWithScores(key.key(), 0, -1);
                     if (tuples == null || tuples.size() == 0) {
                         scoreMap = hook.read(key);
@@ -126,9 +132,10 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
                         }
                         return scoreMap;
                     }
-                    scoreMap = new LinkedHashMap<String, Double>(tuples.size());
+                    scoreMap = new LinkedHashMap<T, Double>(tuples.size());
+                    TypeConverter typeConverter=new TypeConverter(keyClazz);
                     for (Tuple tuple : tuples) {
-                        scoreMap.put(tuple.getElement(), tuple.getScore());
+                        scoreMap.put((T)typeConverter.convert(tuple.getElement()), tuple.getScore());
                     }
                     return scoreMap;
                 }

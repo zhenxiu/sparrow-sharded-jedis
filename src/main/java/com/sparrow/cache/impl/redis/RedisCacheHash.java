@@ -11,6 +11,7 @@ import redis.clients.jedis.ShardedJedis;
 
 import java.util.HashMap;
 import java.util.Map;
+import redis.clients.jedis.ShardedJedisPipeline;
 
 /**
  * Created by harry on 2018/1/26.
@@ -127,10 +128,12 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
         return redisPool.execute(new Executor<Integer>() {
             @Override
             public Integer execute(ShardedJedis jedis) {
+                ShardedJedisPipeline shardedJedisPipeline=jedis.pipelined();
                 TypeConverter typeConverter=new TypeConverter(String.class);
                 for(K k:map.keySet()){
-                    jedis.hset(key.key(), k.toString(), typeConverter.convert(map.get(k)).toString());
+                    shardedJedisPipeline.hset(key.key(), k.toString(), typeConverter.convert(map.get(k)).toString());
                 }
+                shardedJedisPipeline.sync();
                 return map.size();
             }
         }, key);
