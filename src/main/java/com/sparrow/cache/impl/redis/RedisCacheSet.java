@@ -90,12 +90,12 @@ public class RedisCacheSet extends AbstractCommand implements CacheSet {
     }
 
     @Override
-    public <T> Long remove(final KEY key, final T value) throws CacheConnectionException {
-        return redisPool.execute(new Executor<Long>() {
+    public <T> Boolean remove(final KEY key, final T value) throws CacheConnectionException {
+        return redisPool.execute(new Executor<Boolean>() {
             @Override
-            public Long execute(ShardedJedis jedis) {
+            public Boolean execute(ShardedJedis jedis) {
                 TypeConverter typeConverter=new TypeConverter(String.class);
-                return jedis.srem(key.key(),typeConverter.convert(value).toString());
+                return jedis.srem(key.key(),typeConverter.convert(value).toString())>0;
             }
         }, key);
     }

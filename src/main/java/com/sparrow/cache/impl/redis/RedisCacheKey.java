@@ -31,32 +31,32 @@ public class RedisCacheKey extends AbstractCommand implements CacheKey{
     }
 
     @Override
-    public Long expire(final KEY key, final Integer expire) throws CacheConnectionException {
+    public Boolean expire(final KEY key, final Integer expire) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
                 return jedis.expire(key.key(), expire);
             }
-        },key);
+        },key)>0;
     }
 
     @Override
-    public Long delete(final KEY key) throws CacheConnectionException {
+    public Boolean delete(final KEY key) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
                 return jedis.expireAt(key.key(), -1L);
             }
-        },key);
+        },key)>0;
     }
 
     @Override
-    public Long expireAt(final KEY key, final Long expire) throws CacheConnectionException {
+    public Boolean expireAt(final KEY key, final Long expire) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
                 return jedis.expireAt(key.key(), expire);
             }
-        },key);
+        },key)>0;
     }
 }
