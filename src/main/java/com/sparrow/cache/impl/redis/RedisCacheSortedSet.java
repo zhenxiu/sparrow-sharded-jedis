@@ -18,24 +18,23 @@
 package com.sparrow.cache.impl.redis;
 
 import com.sparrow.cache.CacheDataNotFound;
-import com.sparrow.cache.CacheOrderSet;
+import com.sparrow.cache.CacheSortedSet;
 import com.sparrow.constant.cache.KEY;
 import com.sparrow.core.TypeConverter;
 import com.sparrow.exception.CacheConnectionException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import redis.clients.jedis.ShardedJedis;
 import redis.clients.jedis.ShardedJedisPipeline;
 import redis.clients.jedis.Tuple;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
-
 /**
- * Created by harry on 2018/1/26.
+ * @author harry
  */
-public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet {
-    RedisCacheOrderSet(RedisPool redisPool) {
-        this.redisPool=redisPool;
+public class RedisCacheSortedSet extends AbstractCommand implements CacheSortedSet {
+    RedisCacheSortedSet(RedisPool redisPool) {
+        this.redisPool = redisPool;
     }
 
     @Override
@@ -53,19 +52,18 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
-                TypeConverter typeConverter=new TypeConverter(String.class);
+                TypeConverter typeConverter = new TypeConverter(String.class);
                 return jedis.zadd(key.key(), score, typeConverter.convert(value).toString());
             }
         }, key);
     }
-
 
     @Override
     public <T> Long remove(final KEY key, final T value) throws CacheConnectionException {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
-                TypeConverter typeConverter=new TypeConverter(String.class);
+                TypeConverter typeConverter = new TypeConverter(String.class);
                 return jedis.zrem(key.key(), typeConverter.convert(value).toString());
             }
         }, key);
@@ -86,7 +84,7 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
         return redisPool.execute(new Executor<Double>() {
             @Override
             public Double execute(ShardedJedis jedis) {
-                TypeConverter typeConverter=new TypeConverter(String.class);
+                TypeConverter typeConverter = new TypeConverter(String.class);
                 return jedis.zscore(key.key(), typeConverter.convert(value).toString());
             }
         }, key);
@@ -118,23 +116,27 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
     }
 
     @Override
-    public <T> Integer putAllWithScore(final KEY key, final Map<T, Double> keyScoreMap) throws CacheConnectionException {
+    public <T> Integer putAllWithScore(final KEY key,
+        final Map<T, Double> keyScoreMap) throws CacheConnectionException {
         return redisPool.execute(new Executor<Integer>() {
             @Override
             public Integer execute(ShardedJedis jedis) {
-                ShardedJedisPipeline pipeline=jedis.pipelined();
-                TypeConverter typeConverter=new TypeConverter(String.class);
+                ShardedJedisPipeline pipeline = jedis.pipelined();
+                TypeConverter typeConverter = new TypeConverter(String.class);
                 for (T value : keyScoreMap.keySet()) {
                     pipeline.zadd(key.key(), keyScoreMap.get(value), typeConverter.convert(value).toString());
                 }
                 pipeline.sync();
                 return keyScoreMap.size();
-            };
+            }
+
+            ;
         }, key);
     }
 
     @Override
-    public <T> Map<T, Double> getAllWithScore(final KEY key, final Class keyClazz,final CacheDataNotFound<Map<T,Double>> hook) {
+    public <T> Map<T, Double> getAllWithScore(final KEY key, final Class keyClazz,
+        final CacheDataNotFound<Map<T, Double>> hook) {
         try {
             return redisPool.execute(new Executor<Map<T, Double>>() {
                 @Override
@@ -144,15 +146,15 @@ public class RedisCacheOrderSet extends AbstractCommand implements CacheOrderSet
                     if (tuples == null || tuples.size() == 0) {
                         scoreMap = hook.read(key);
                         try {
-                            RedisCacheOrderSet.this.putAllWithScore(key,scoreMap);
+                            RedisCacheSortedSet.this.putAllWithScore(key, scoreMap);
                         } catch (CacheConnectionException ignore) {
                         }
                         return scoreMap;
                     }
                     scoreMap = new LinkedHashMap<T, Double>(tuples.size());
-                    TypeConverter typeConverter=new TypeConverter(keyClazz);
+                    TypeConverter typeConverter = new TypeConverter(keyClazz);
                     for (Tuple tuple : tuples) {
-                        scoreMap.put((T)typeConverter.convert(tuple.getElement()), tuple.getScore());
+                        scoreMap.put((T) typeConverter.convert(tuple.getElement()), tuple.getScore());
                     }
                     return scoreMap;
                 }
