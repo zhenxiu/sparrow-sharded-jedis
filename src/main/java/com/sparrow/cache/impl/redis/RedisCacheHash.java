@@ -28,6 +28,7 @@ import redis.clients.jedis.ShardedJedis;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import redis.clients.jedis.ShardedJedisPipeline;
 
 /**
@@ -44,7 +45,7 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
     }
 
     @Override
-    public <K, T> Map<K, T> getAll(final KEY key, final Class keyClazz, final Class clazz, final CacheDataNotFound<Map<K,T>> hook) {
+    public <K, T> Map<K, T> getAll(final KEY key, final Class keyClazz, final Class clazz, final CacheDataNotFound<Map<K, T>> hook) {
         try {
             return redisPool.execute(new Executor<Map<K, T>>() {
                 @Override
@@ -52,12 +53,15 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
                     Map<K, T> result = new HashMap<K, T>();
                     Map<String, String> map = jedis.hgetAll(key.key());
                     if (map == null || map.size() == 0) {
+                        if (redisPool.getCacheMonitor() != null) {
+                            redisPool.getCacheMonitor().penetrate(key);
+                        }
                         result = hook.read(key);
-                        RedisCacheHash.this.put(key,map);
+                        RedisCacheHash.this.put(key, map);
                         return result;
                     }
-                    TypeConverter keyConverter=new TypeConverter(keyClazz);
-                    TypeConverter valueConverter=new TypeConverter(clazz);
+                    TypeConverter keyConverter = new TypeConverter(keyClazz);
+                    TypeConverter valueConverter = new TypeConverter(clazz);
                     for (String k : map.keySet()) {
                         if (StringUtility.isNullOrEmpty(map.get(k))) {
                             continue;
@@ -69,6 +73,9 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
                 }
             }, key);
         } catch (CacheConnectionException e) {
+            if (redisPool.getCacheMonitor() != null) {
+                redisPool.getCacheMonitor().penetrate(key);
+            }
             return hook.read(key);
         }
     }
@@ -134,20 +141,20 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
         return redisPool.execute(new Executor<Long>() {
             @Override
             public Long execute(ShardedJedis jedis) {
-                TypeConverter typeConverter=new TypeConverter(String.class);
+                TypeConverter typeConverter = new TypeConverter(String.class);
                 return jedis.hset(key.key(), field, typeConverter.convert(value).toString());
             }
         }, key);
     }
 
     @Override
-    public <K,T> Integer put(final KEY key, final Map<K,T> map) throws CacheConnectionException {
+    public <K, T> Integer put(final KEY key, final Map<K, T> map) throws CacheConnectionException {
         return redisPool.execute(new Executor<Integer>() {
             @Override
             public Integer execute(ShardedJedis jedis) {
-                ShardedJedisPipeline shardedJedisPipeline=jedis.pipelined();
-                TypeConverter typeConverter=new TypeConverter(String.class);
-                for(K k:map.keySet()){
+                ShardedJedisPipeline shardedJedisPipeline = jedis.pipelined();
+                TypeConverter typeConverter = new TypeConverter(String.class);
+                for (K k : map.keySet()) {
                     shardedJedisPipeline.hset(key.key(), k.toString(), typeConverter.convert(map.get(k)).toString());
                 }
                 shardedJedisPipeline.sync();

@@ -86,6 +86,9 @@ public class RedisCacheString extends AbstractCommand implements CacheString {
                 public T execute(ShardedJedis jedis) throws CacheConnectionException {
                     String json = jedis.get(key.key());
                     if (StringUtility.isNullOrEmpty(json)) {
+                        if (redisPool.getCacheMonitor() != null) {
+                            redisPool.getCacheMonitor().penetrate(key);
+                        }
                         T value = hook.read(key);
                         RedisCacheString.this.set(key,value);
                         return hook.read(key);
@@ -95,6 +98,9 @@ public class RedisCacheString extends AbstractCommand implements CacheString {
                 }
             }, key);
         } catch (CacheConnectionException e) {
+            if (redisPool.getCacheMonitor() != null) {
+                redisPool.getCacheMonitor().penetrate(key);
+            }
             return hook.read(key);
         }
     }

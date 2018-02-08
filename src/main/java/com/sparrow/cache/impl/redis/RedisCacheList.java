@@ -137,6 +137,9 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
                     List<String> list = jedis.lrange(key.key(), 0, - 1);
                     List<T> typeList =null;
                     if (list == null || list.size() == 0) {
+                        if (redisPool.getCacheMonitor() != null) {
+                            redisPool.getCacheMonitor().penetrate(key);
+                        }
                         typeList=hook.read(key);
                         RedisCacheList.this.add(key,list);
                         return typeList;
@@ -150,6 +153,9 @@ public class RedisCacheList extends AbstractCommand implements CacheList {
                 }
             }, key);
         } catch (CacheConnectionException e) {
+            if (redisPool.getCacheMonitor() != null) {
+                redisPool.getCacheMonitor().penetrate(key);
+            }
             return hook.read(key);
         }
     }

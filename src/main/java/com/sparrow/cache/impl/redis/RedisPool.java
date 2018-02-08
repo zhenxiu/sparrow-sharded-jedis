@@ -57,6 +57,10 @@ public class RedisPool implements ContainerAware {
         this.cacheMonitor = cacheMonitor;
     }
 
+    public CacheMonitor getCacheMonitor() {
+        return cacheMonitor;
+    }
+
     public void setMaxActive(Integer maxActive) {
         this.maxActive = maxActive;
     }
