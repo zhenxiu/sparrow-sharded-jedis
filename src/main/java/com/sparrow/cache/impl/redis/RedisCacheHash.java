@@ -26,8 +26,7 @@ import com.sparrow.json.Json;
 import com.sparrow.utility.StringUtility;
 import redis.clients.jedis.ShardedJedis;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import redis.clients.jedis.ShardedJedisPipeline;
 
@@ -122,7 +121,35 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
     }
 
     @Override
-    public <T> T get(final KEY key, final String field, final Class clazz) throws CacheConnectionException {
+    public Map<String,String> get(final KEY key, final Collection<String> fieldList) throws CacheConnectionException {
+        return redisPool.execute(new Executor<Map<String,String>>() {
+            @Override
+            public Map<String,String> execute(ShardedJedis jedis) throws CacheConnectionException {
+                Map<String,String> values=new LinkedHashMap<String, String>(fieldList.size());
+                for(String field:fieldList) {
+                    values.put(field,jedis.hget(key.key(), field));
+                }
+                return values;
+            }
+        }, key);
+    }
+
+    @Override
+    public <T> Map<String,T> get(final KEY key, final Collection<String> fieldList, final Class valueType) throws CacheConnectionException {
+        return redisPool.execute(new Executor<Map<String,T>>() {
+            @Override
+            public Map<String,T> execute(ShardedJedis jedis) throws CacheConnectionException {
+                Map<String,T> values=new LinkedHashMap<String, T>(fieldList.size());
+                for(String field:fieldList) {
+                    String value= jedis.hget(key.key(), field);
+                    values.put(field,(T)new TypeConverter(valueType).convert(value));
+                }
+                return values;
+            }
+        }, key);
+    }
+    @Override
+    public <T> T get(final KEY key, final String field, final Class valueType) throws CacheConnectionException {
         return redisPool.execute(new Executor<T>() {
             @Override
             public T execute(ShardedJedis jedis) throws CacheConnectionException {
@@ -130,8 +157,7 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
                 if (StringUtility.isNullOrEmpty(value)) {
                     return null;
                 }
-                TypeConverter typeConverter = new TypeConverter(clazz);
-                return (T) typeConverter.convert(value);
+                return (T) new TypeConverter(valueType).convert(value);
             }
         }, key);
     }
