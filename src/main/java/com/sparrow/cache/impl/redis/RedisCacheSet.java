@@ -170,4 +170,14 @@ public class RedisCacheSet extends AbstractCommand implements CacheSet {
             return hook.read(key);
         }
     }
+
+    @Override
+    public String pop(final KEY key) throws CacheConnectionException {
+        return redisPool.execute(new Executor<String>() {
+            @Override
+            public String execute(ShardedJedis jedis) {
+                return jedis.spop(key.key());
+            }
+        }, key);
+    }
 }

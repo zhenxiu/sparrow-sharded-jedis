@@ -48,6 +48,7 @@ public class RedisPool implements ContainerAware {
 
 
     private String urls;
+    private String password;
     private Integer maxActive = 100;
     private Integer maxIdle = 50;
     private Integer maxWait = 50000;
@@ -79,6 +80,10 @@ public class RedisPool implements ContainerAware {
 
     public void setUrls(String urls) {
         this.urls = urls;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public String getInfo() {
@@ -134,12 +139,15 @@ public class RedisPool implements ContainerAware {
         config.setTestOnBorrow(this.testOnBorrow);
 
         // 超过时则报错 阻塞 或增加链接数
-        config.setWhenExhaustedAction(GenericObjectPool.WHEN_EXHAUSTED_FAIL);
+        config.setWhenExhaustedAction(GenericObjectPool.WHEN_EXHAUSTED_BLOCK);
         String[] urlArray = this.urls.split(SYMBOL.COMMA);
         List<JedisShardInfo> jdsInfoList = new ArrayList<JedisShardInfo>(urlArray.length);
         for (String url : urlArray) {
             Pair<String, String> urlPortPair = Pair.split(url, SYMBOL.COLON);
             JedisShardInfo infoA = new JedisShardInfo(urlPortPair.getFirst(), urlPortPair.getSecond());
+            if (this.password != null && this.password.length() > 0) {
+                infoA.setPassword(password);
+            }
             jdsInfoList.add(infoA);
         }
         pool = new ShardedJedisPool(config, jdsInfoList, Hashing.MURMUR_HASH,

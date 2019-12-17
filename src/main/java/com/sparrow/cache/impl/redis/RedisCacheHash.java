@@ -162,4 +162,14 @@ public class RedisCacheHash extends AbstractCommand implements CacheHash {
             }
         }, key);
     }
+
+    @Override
+    public Long incrBy(final KEY key, final String field, final long count) throws CacheConnectionException {
+        return redisPool.execute(new Executor<Long>() {
+            @Override
+            public Long execute(ShardedJedis jedis) {
+                return jedis.hincrBy(key.key(), field, count);
+            }
+        }, key);
+    }
 }
